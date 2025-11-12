@@ -1,21 +1,10 @@
-#ifndef OPTION_H
-#define OPTION_H
-
-#include <vector>
-
+#pragma once
 class Option {
 protected:
-    double expiry;
-
+    double _expiry;
 public:
-    Option(double expiry);
+    Option(double expiry) : _expiry(expiry) {}
     virtual ~Option() = default;
-    
-    double getExpiry() const;
+    double getExpiry() const { return _expiry; }
     virtual double payoff(double spot) const = 0;
-    virtual double payoffPath(const std::vector<double>& spot_path) const;
-    virtual bool isAsianOption() const;
-    virtual bool isAmericanOption() const;
 };
-
-#endif
