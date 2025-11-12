@@ -1,26 +1,48 @@
-#ifndef BLACKSCHOLESPRICER_H
-#define BLACKSCHOLESPRICER_H
-
-#include "EuropeanVanillaOption.h"
+#pragma once
+#include <cmath>
+#include <stdexcept>
+#include "CallOption.h"
+#include "PutOption.h"
+#include "EuropeanDigitalCallOption.h"
+#include "EuropeanDigitalPutOption.h"
 
 class BlackScholesPricer {
 private:
-    EuropeanVanillaOption* option;
-    double asset_price;
-    double interest_rate;
-    double volatility;
+    Option* _option;
+    double _S, _r, _sigma, _T, _K;
 
-    // Helper functions for Black-Scholes formula
-    double norm_cdf(double x) const;
-    double calculate_d1() const;
-    double calculate_d2() const;
+    static double norm_cdf(double x) {
+        return 0.5 * std::erfc(-x * M_SQRT1_2);
+    }
 
 public:
-    BlackScholesPricer(EuropeanVanillaOption* option, double asset_price, 
-                      double interest_rate, double volatility);
-    
-    double operator()() const;  // Price calculation
-    double delta() const;       // Delta calculation
-};
+    BlackScholesPricer(Option* option, double S, double r, double sigma, double K)
+        : _option(option), _S(S), _r(r), _sigma(sigma), _T(option->getExpiry()), _K(K) {}
 
-#endif
+    double operator()() const {
+        double d1 = (std::log(_S / _K) + (_r + 0.5 * _sigma * _sigma) * _T) / (_sigma * std::sqrt(_T));
+        double d2 = d1 - _sigma * std::sqrt(_T);
+
+        // --- European Call ---
+        if (dynamic_cast<CallOption*>(_option)) {
+            return _S * norm_cdf(d1) - _K * std::exp(-_r * _T) * norm_cdf(d2);
+        }
+
+        // --- European Put ---
+        if (dynamic_cast<PutOption*>(_option)) {
+            return _K * std::exp(-_r * _T) * norm_cdf(-d2) - _S * norm_cdf(-d1);
+        }
+
+        // --- Digital Call ---
+        if (dynamic_cast<EuropeanDigitalCallOption*>(_option)) {
+            return std::exp(-_r * _T) * norm_cdf(d2);
+        }
+
+        // --- Digital Put ---
+        if (dynamic_cast<EuropeanDigitalPutOption*>(_option)) {
+            return std::exp(-_r * _T) * norm_cdf(-d2);
+        }
+
+        throw std::invalid_argument("Unsupported option type for Black–Scholes");
+    }
+};
