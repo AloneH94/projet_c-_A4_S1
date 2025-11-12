@@ -1,13 +1,14 @@
-#ifndef CALLOPTION_H
-#define CALLOPTION_H
+#pragma once
+#include "Option.h"
+#include <algorithm>
 
-#include "EuropeanVanillaOption.h"
-
-class CallOption : public EuropeanVanillaOption {
+class CallOption : public Option {
+private:
+    double _strike;
 public:
-    CallOption(double expiry, double strike);
-    double payoff(double spot) const override;
-    EuropeanVanillaOption::OptionType GetOptionType() const override;
+    CallOption(double expiry, double strike) : Option(expiry), _strike(strike) {}
+    double getStrike() const { return _strike; }
+    double payoff(double spot) const override {
+        return std::max(spot - _strike, 0.0);
+    }
 };
-
-#endif
