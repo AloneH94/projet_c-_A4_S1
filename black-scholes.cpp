@@ -25,6 +25,7 @@ public:
 
 #include <stdexcept>
 #include <cmath>
+#include <type_traits>
 
 class EuropeanVanillaOption : public Option {
 private:
@@ -76,6 +77,38 @@ public:
     }
 };
 
+/***************  NOUVELLES OPTIONS DIGITALES  ***************/
+class EuropeanDigitalCall : public EuropeanVanillaOption {
+public:
+    EuropeanDigitalCall(double expiry, double strike)
+        : EuropeanVanillaOption(expiry, strike) {}
+
+    // Cash-or-nothing: paie 1 si S_T >= K, 0 sinon
+    double payoff(double spot) const override {
+        return (spot >= getStrike()) ? 1.0 : 0.0;
+    }
+
+    OptionType GetOptionType() const override {
+        return OptionType::Call;
+    }
+};
+
+class EuropeanDigitalPut : public EuropeanVanillaOption {
+public:
+    EuropeanDigitalPut(double expiry, double strike)
+        : EuropeanVanillaOption(expiry, strike) {}
+
+    // Cash-or-nothing: paie 1 si S_T < K, 0 sinon
+    double payoff(double spot) const override {
+        return (spot < getStrike()) ? 1.0 : 0.0;
+    }
+
+    OptionType GetOptionType() const override {
+        return OptionType::Put;
+    }
+};
+/*************************************************************/
+
 class BlackScholesPricer {
 private:
     EuropeanVanillaOption* _option;
@@ -95,11 +128,22 @@ public:
         double T = _option->getExpiry();
         double K = _option->_strike;
         if (T <= 0 || _sigma <= 0) {
-            // For zero expiry or zero volatility, payoff equals intrinsic value
+            // Pour T=0 ou sigma=0, on renvoie la valeur intrinsèque
             return _option->payoff(_S);
         }
         double d1 = (std::log(_S / K) + ( _r + 0.5 * _sigma * _sigma) * T) / (_sigma * std::sqrt(T));
         double d2 = d1 - _sigma * std::sqrt(T);
+
+        // *** Détection digitale vs vanille ***
+        if (dynamic_cast<EuropeanDigitalCall*>(_option) != nullptr) {
+            // Prix digital call (cash-or-nothing) : e^{-rT} * N(d2)
+            return std::exp(-_r * T) * norm_cdf(d2);
+        } else if (dynamic_cast<EuropeanDigitalPut*>(_option) != nullptr) {
+            // Prix digital put (cash-or-nothing) : e^{-rT} * N(-d2)
+            return std::exp(-_r * T) * norm_cdf(-d2);
+        }
+
+        // *** Formules vanilles ***
         if (_option->GetOptionType() == EuropeanVanillaOption::OptionType::Call) {
             return _S * norm_cdf(d1) - K * std::exp(-_r * T) * norm_cdf(d2);
         } else {
@@ -107,12 +151,11 @@ public:
         }
     }
 
+    // delta() conservé tel quel (non utilisé dans main)
     double delta() const {
         double T = _option->getExpiry();
         double K = _option->_strike;
         if (T <= 0 || _sigma <= 0) {
-            // For zero expiry or zero volatility, delta is 0 or 1 depending on intrinsic value
-            double payoff_val = _option->payoff(_S);
             if (_option->GetOptionType() == EuropeanVanillaOption::OptionType::Call) {
                 return (_S > K) ? 1.0 : 0.0;
             } else {
@@ -137,24 +180,35 @@ int main() {
     double r = 0.01;
     double sigma = 0.1;
 
-    // Create Call and Put options
+    // Create Call and Put options (vanille)
     CallOption call(T, K);
     PutOption put(T, K);
+
+    // Create Digital Call and Put
+    EuropeanDigitalCall dcall(T, K);
+    EuropeanDigitalPut dput(T, K);
 
     // Instantiate Black-Scholes pricers
     BlackScholesPricer call_pricer(&call, S0, r, sigma);
     BlackScholesPricer put_pricer(&put, S0, r, sigma);
+    BlackScholesPricer dcall_pricer(&dcall, S0, r, sigma);
+    BlackScholesPricer dput_pricer(&dput, S0, r, sigma);
 
-    // Compute and print results for Call
+    // Compute and print results for vanilla Call
     std::cout << "European Call Option:" << std::endl;
     std::cout << "  Price: " << call_pricer() << std::endl;
-    std::cout << "  Delta: " << call_pricer.delta() << std::endl;
-    std::cout << std::endl;
 
-    // Compute and print results for Put
+    // Compute and print results for vanilla Put
     std::cout << "European Put Option:" << std::endl;
     std::cout << "  Price: " << put_pricer() << std::endl;
-    std::cout << "  Delta: " << put_pricer.delta() << std::endl;
+
+    // Compute and print results for Digital Call
+    std::cout << "European Digital Call Option:" << std::endl;
+    std::cout << "  Price: " << dcall_pricer() << std::endl;
+
+    // Compute and print results for Digital Put
+    std::cout << "European Digital Put Option:" << std::endl;
+    std::cout << "  Price: " << dput_pricer() << std::endl;
 
     return 0;
 }
