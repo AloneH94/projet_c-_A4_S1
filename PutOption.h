@@ -1,13 +1,14 @@
-#ifndef PUTOPTION_H
-#define PUTOPTION_H
+#pragma once
+#include "Option.h"
+#include <algorithm>
 
-#include "EuropeanVanillaOption.h"
-
-class PutOption : public EuropeanVanillaOption {
-public:
-    PutOption(double expiry, double strike);
-    double payoff(double spot) const override;
-    EuropeanVanillaOption::OptionType GetOptionType() const override;
+class PutOption : public Option {
+    private:
+        double _strike;
+    public:
+        PutOption(double expiry, double strike) : Option(expiry), _strike(strike) {}
+        double getStrike() const { return _strike; }
+        double payoff(double spot) const override {
+            return std::max(_strike - spot, 0.0);
+        }
 };
-
-#endif
